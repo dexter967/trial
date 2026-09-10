@@ -1,0 +1,618 @@
+/* =====================================
+   SWARITHMETIC
+   STYLE
+===================================== */
+
+:root {
+  --font-pixel: "Press Start 2P", monospace;
+  --font-retro: "VT323", monospace;
+
+  /*
+       DEFAULT THEME (fallback only).
+
+       JavaScript overrides these four
+       variables directly on <body>
+       every time the operator changes,
+       via style.setProperty(). That
+       inline value always wins, so
+       these root defaults just prevent
+       a flash of unstyled color before
+       the script runs.
+    */
+
+  --panel-color: #d8e6f3;
+  --button-color: #5b8dbe;
+  --text-color: #1f3b57;
+  --sub-color: #3d5568;
+}
+
+/* =====================================
+   BASIC
+===================================== */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+
+  min-height: 100%;
+}
+
+body {
+  min-height: 100vh;
+
+  /*
+       THE WHOLE PAGE IS NOW THE
+       THEME COLOR -- there is no
+       separate boxed panel anymore.
+    */
+
+  background: var(--panel-color);
+
+  transition: background-color 0.45s ease;
+
+  display: flex;
+
+  flex-direction: column;
+
+  font-family: var(--font-retro);
+}
+
+/* =====================================
+   PAGE HEADER
+   (top-left, spans full width --
+   this is section 2 of a longer
+   scrolling page)
+===================================== */
+
+.page-header {
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: flex-start;
+
+  gap: 4px;
+
+  padding: 40px 40px 0;
+}
+
+.page-title {
+  font-family: var(--font-pixel);
+
+  font-size: 14px;
+
+  color: var(--text-color);
+
+  letter-spacing: 1px;
+
+  transition: color 0.45s ease;
+}
+
+.page-sub {
+  font-family: var(--font-retro);
+
+  font-size: 17px;
+
+  color: var(--sub-color);
+
+  transition: color 0.45s ease;
+}
+
+/* =====================================
+   PAGE (holds console + game,
+   centered in the remaining space)
+===================================== */
+
+.page {
+  flex: 1;
+
+  width: 100%;
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+
+  justify-content: center;
+
+  gap: 20px;
+
+  padding: 30px 16px 60px;
+}
+
+/* =====================================
+   CONSOLE
+   (no background/border-radius of
+   its own anymore -- it just sits
+   on the page's color)
+===================================== */
+
+.console {
+  width: 100%;
+
+  max-width: 480px;
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+}
+
+/* =====================================
+   INPUT ROW
+===================================== */
+
+.console-row {
+  display: flex;
+
+  justify-content: center;
+
+  align-items: center;
+
+  gap: 20px;
+
+  margin-bottom: 25px;
+}
+
+.field {
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+
+  gap: 7px;
+}
+
+.field label {
+  font-family: var(--font-retro);
+
+  font-size: 14px;
+
+  color: var(--sub-color);
+
+  transition: color 0.45s ease;
+}
+
+/* =====================================
+   NUMBER INPUT
+===================================== */
+
+.operand-input {
+  width: 82px;
+
+  height: 60px;
+
+  border: none;
+
+  border-radius: 14px;
+
+  background: #ffffff;
+
+  color: var(--text-color);
+
+  text-align: center;
+
+  font-family: var(--font-retro);
+
+  font-size: 25px;
+
+  outline: none;
+}
+
+.operand-input:focus {
+  outline: 2px solid var(--button-color);
+}
+
+/* Remove arrows */
+
+.operand-input::-webkit-inner-spin-button,
+.operand-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+
+  margin: 0;
+}
+
+.operand-input {
+  appearance: textfield;
+}
+
+/* =====================================
+   OPERATOR BUTTON
+===================================== */
+
+.op-button {
+  width: 72px;
+
+  height: 72px;
+
+  border: none;
+
+  border-radius: 50%;
+
+  background: var(--button-color);
+
+  color: #ffffff;
+
+  font-family: var(--font-retro);
+
+  font-size: 28px;
+
+  cursor: pointer;
+
+  transition:
+    background-color 0.45s ease,
+    transform 0.15s ease,
+    box-shadow 0.45s ease;
+}
+
+.op-button:hover {
+  transform: scale(1.05);
+}
+
+.op-button:active {
+  transform: scale(0.92);
+}
+
+/* =====================================
+   CALCULATE BUTTON
+===================================== */
+
+.calculate-button {
+  width: 100%;
+
+  height: 52px;
+
+  border: none;
+
+  border-radius: 14px;
+
+  background: var(--text-color);
+
+  color: #ffffff;
+
+  font-family: var(--font-retro);
+
+  font-size: 21px;
+
+  letter-spacing: 1px;
+
+  cursor: pointer;
+
+  transition:
+    background-color 0.45s ease,
+    transform 0.15s ease;
+}
+
+.calculate-button:hover {
+  opacity: 0.9;
+}
+
+.calculate-button:active {
+  transform: scale(0.98);
+}
+
+/* =====================================
+   ERROR
+===================================== */
+
+.error-text {
+  margin: 10px 0 0;
+
+  min-height: 20px;
+
+  text-align: center;
+
+  color: #9b3535;
+
+  font-size: 16px;
+}
+
+/* =====================================
+   GAME
+
+   This stays a white card on
+   purpose -- it needs to read
+   clearly against any of the four
+   pastel page themes behind it.
+===================================== */
+
+.game {
+  width: 100%;
+
+  max-width: 480px;
+
+  background: #ffffff;
+
+  border-radius: 22px;
+
+  padding: 25px;
+
+  text-align: center;
+
+  border: 1px solid #e8e8e8;
+
+  animation: slideDown 0.5s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+
+    transform: translateY(-15px);
+  }
+
+  to {
+    opacity: 1;
+
+    transform: translateY(0);
+  }
+}
+
+/* =====================================
+   LEVEL
+===================================== */
+
+.level-badge {
+  font-family: var(--font-pixel);
+
+  font-size: 11px;
+
+  color: #666666;
+
+  letter-spacing: 1px;
+}
+
+/* =====================================
+   METER
+===================================== */
+
+.meter-track {
+  position: relative;
+
+  width: 100%;
+
+  height: 18px;
+
+  margin-top: 20px;
+
+  border-radius: 20px;
+
+  background: #e8e8e8;
+
+  overflow: hidden;
+}
+
+.meter-fill {
+  width: 0%;
+
+  height: 100%;
+
+  background: #d9732b;
+
+  border-radius: 20px;
+
+  transition: width 0.08s linear;
+}
+
+/* Target */
+
+.target-line {
+  position: absolute;
+
+  top: 0;
+
+  bottom: 0;
+
+  left: 25%;
+
+  width: 4px;
+
+  background: #222222;
+
+  z-index: 5;
+}
+
+.meter-caption {
+  margin: 7px 0 20px;
+
+  font-size: 15px;
+
+  color: #999999;
+}
+
+/* =====================================
+   STAGE
+===================================== */
+
+.stage {
+  min-height: 190px;
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+
+  justify-content: center;
+
+  gap: 12px;
+}
+
+.mic-hint {
+  font-size: 17px;
+
+  color: #999999;
+}
+
+/* =====================================
+   SWARA
+===================================== */
+
+.swara-circle {
+  width: 95px;
+
+  height: 95px;
+
+  border: none;
+
+  border-radius: 50%;
+
+  background: #f0997b;
+
+  color: #4a1b0c;
+
+  font-family: var(--font-retro);
+
+  font-size: 29px;
+
+  cursor: pointer;
+
+  transition:
+    transform 0.15s ease,
+    background-color 0.3s ease;
+}
+
+.swara-circle:hover {
+  transform: scale(1.06);
+}
+
+.swara-circle:active {
+  transform: scale(0.94);
+}
+
+/* Singing animation */
+
+.swara-circle.listening {
+  animation: singingPulse 0.8s infinite;
+}
+
+@keyframes singingPulse {
+  0% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.12);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Solved */
+
+.swara-circle.solved {
+  background: #97c459;
+
+  color: #173404;
+}
+
+.step-label {
+  font-size: 18px;
+
+  color: #888888;
+}
+
+.step-label.solved {
+  color: #3f7015;
+}
+
+/* =====================================
+   RESULT
+===================================== */
+
+.equation-line {
+  min-height: 30px;
+
+  margin: 15px 0 5px;
+
+  font-size: 26px;
+
+  color: #2e2e2e;
+}
+
+.answer-line {
+  min-height: 25px;
+
+  margin: 0;
+
+  font-size: 22px;
+
+  color: #666666;
+}
+
+/* =====================================
+   RESET
+===================================== */
+
+.reset-button {
+  width: 100%;
+
+  height: 46px;
+
+  margin-top: 18px;
+
+  border: none;
+
+  border-radius: 13px;
+
+  background: #2e2e2e;
+
+  color: #ffffff;
+
+  font-family: var(--font-retro);
+
+  font-size: 19px;
+
+  cursor: pointer;
+}
+
+.reset-button:hover {
+  opacity: 0.85;
+}
+
+/* =====================================
+   MOBILE
+===================================== */
+
+@media (max-width: 430px) {
+  .page-header {
+    padding: 25px 20px 0;
+  }
+
+  .page {
+    padding: 20px 12px 40px;
+  }
+
+  .console-row {
+    gap: 10px;
+  }
+
+  .operand-input {
+    width: 70px;
+
+    height: 55px;
+  }
+
+  .op-button {
+    width: 64px;
+
+    height: 64px;
+  }
+
+  .page-title {
+    font-size: 10px;
+  }
+
+  .page-sub {
+    font-size: 15px;
+  }
+}
