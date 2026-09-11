@@ -322,6 +322,7 @@ const backToSiteBtn = document.getElementById('backToSiteBtn');
 if (startCalcBtn && gameWrapper) {
   startCalcBtn.addEventListener('click', function () {
     gameWrapper.hidden = false;
+    gameWrapper.classList.add('is-open');
     gameWrapper.scrollTop = 0;
     document.body.classList.add('calculator-open');
   });
@@ -329,6 +330,7 @@ if (startCalcBtn && gameWrapper) {
 
 if (backToSiteBtn && gameWrapper) {
   backToSiteBtn.addEventListener('click', function () {
+    gameWrapper.classList.remove('is-open');
     gameWrapper.hidden = true;
     document.body.classList.remove('calculator-open');
   });
