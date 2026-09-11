@@ -31,14 +31,12 @@ const holdReadout = document.getElementById("holdReadout");
    TUNABLES & DETECTOR SETTINGS
 ===================================== */
 
-const MATCH_TOLERANCE_CENTS = 35; // Sensitivity window for exact pitch matching (+/- 35 cents)
-const HOLD_TIME_MS = 600; // Pitch must be held continuously for 600ms
 const MIN_RMS = 0.035; // Minimum signal loudness to ignore quiet ambient noise
 const YIN_THRESHOLD = 0.15; // Harmonic clarity threshold (ignores unpitched noise/talking)
 const METER_DISPLAY_RANGE_HZ = [200, 600]; // Visual scale bounds for side meter
 
 /* =====================================
-   SWARA FREQUENCY POOL (Indian Scale)
+   SWARA FREQUENCY POOL & DIFFICULTY PROFILES
 ===================================== */
 
 const SWARA_POOL = [
@@ -46,10 +44,32 @@ const SWARA_POOL = [
   { name: "RI", targetFreq: 293.66 }, // D4
   { name: "GA", targetFreq: 329.63 }, // E4
   { name: "MA", targetFreq: 349.23 }, // F4
-  { name: "PA", targetFreq: 392.00 }, // G4
-  { name: "DHA", targetFreq: 440.00 }, // A4
+  { name: "PA", targetFreq: 392.0 },  // G4
+  { name: "DHA", targetFreq: 440.0 }, // A4
   { name: "NI", targetFreq: 493.88 }, // B4
   { name: "SA'", targetFreq: 523.25 }, // High C (C5)
+];
+
+// Progressive Difficulty Configuration
+const LEVEL_CONFIGS = [
+  {
+    stage: "Operand 1",
+    toleranceCents: 55, // Generous tolerance for Step 1
+    holdTimeMs: 400,    // Quick hold requirement
+    swaraPoolIndex: [0] // Always Start with SA (Root Note) for an easy start
+  },
+  {
+    stage: "Operator",
+    toleranceCents: 40, // Balanced tolerance
+    holdTimeMs: 600,    // Standard hold time
+    swaraPoolIndex: [1, 2, 3, 4, 5, 6] // Mid-range Swaras (RI to NI)
+  },
+  {
+    stage: "Operand 2",
+    toleranceCents: 25, // Strict pitch accuracy requirement
+    holdTimeMs: 750,    // Sustained pitch requirement
+    swaraPoolIndex: [2, 3, 4, 5, 6, 7] // Advanced Swaras including High SA'
+  }
 ];
 
 let activeSwarasSequence = [];
@@ -162,14 +182,15 @@ async function startMicrophone() {
     return true;
   } catch (err) {
     console.error("Microphone access failed:", err);
-    showError("Could not connect to microphone. Check permissions and try again.");
+    showError(
+      "Could not connect to microphone. Check permissions and try again.",
+    );
     return false;
   }
 }
 
 /* =====================================
-   STRICT PITCH DETECTION (YIN Algorithm)
-   Rejects ambient noise, talking, and invalid pitches
+   PITCH DETECTION (YIN Algorithm)
 ===================================== */
 
 function detectPitchYin(buffer, sampleRate) {
@@ -204,7 +225,7 @@ function detectPitchYin(buffer, sampleRate) {
     yinBuffer[t] *= t / runningSum;
   }
 
-  // 4. Absolute Threshold Check (Rejects noisy & unpitched signals)
+  // 4. Absolute Threshold Check
   let tau = -1;
   for (let t = 2; t < HALF_SIZE; t++) {
     if (yinBuffer[t] < YIN_THRESHOLD) {
@@ -220,7 +241,7 @@ function detectPitchYin(buffer, sampleRate) {
     return { freq: -1, probability: 0 };
   }
 
-  // 5. Parabolic Interpolation for Precise Frequency Estimation
+  // 5. Parabolic Interpolation
   let betterTau;
   const x0 = tau < 1 ? tau : tau - 1;
   const x2 = tau + 1 < HALF_SIZE ? tau + 1 : tau;
@@ -248,38 +269,39 @@ function detectPitchYin(buffer, sampleRate) {
 
 function centsBetween(freqA, freqB) {
   let cents = 1200 * Math.log2(freqA / freqB);
-  
-  // Normalizes across octaves so male (low) and female (high) voices match correctly
+
   cents = cents % 1200;
   if (cents > 600) cents -= 1200;
   if (cents < -600) cents += 1200;
-  
+
   return cents;
 }
 
 /* =====================================
-   LISTEN LOOP & STRICT SWARA MATCHING
+   LISTEN LOOP & DYNAMIC LEVEL MATCHING
 ===================================== */
 
-function startListening(targetFreq, onSolved) {
+function startListening(targetSwara, onSolved) {
   matchStartTime = null;
+
+  const tolerance = targetSwara.toleranceCents;
+  const holdTime = targetSwara.holdTimeMs;
+  const targetFreq = targetSwara.targetFreq;
 
   function frame() {
     analyser.getFloatTimeDomainData(audioData);
     const result = detectPitchYin(audioData, audioContext.sampleRate);
 
-    updateSideMeter(result.freq, targetFreq);
+    updateSideMeter(result.freq, targetFreq, tolerance);
 
     if (result.freq > 0) {
       const cents = centsBetween(result.freq, targetFreq);
       const absCents = Math.abs(cents);
-      const isCorrectSwara = absCents <= MATCH_TOLERANCE_CENTS;
+      const isCorrectSwara = absCents <= tolerance;
 
-      // Update Closeness Progress Meter
-      const closeness = Math.max(0, 1 - absCents / (MATCH_TOLERANCE_CENTS * 2.5));
+      const closeness = Math.max(0, 1 - absCents / (tolerance * 2.5));
       if (meterFill) meterFill.style.width = Math.round(closeness * 100) + "%";
 
-      // Progression strictly occurs ONLY on the correct pitch target
       if (isCorrectSwara) {
         if (matchStartTime === null) matchStartTime = performance.now();
         const held = performance.now() - matchStartTime;
@@ -287,25 +309,22 @@ function startListening(targetFreq, onSolved) {
         if (holdReadout) {
           holdReadout.textContent =
             "holding " +
-            Math.min(HOLD_TIME_MS, Math.round(held)) +
+            Math.min(holdTime, Math.round(held)) +
             " / " +
-            HOLD_TIME_MS +
+            holdTime +
             " ms";
         }
 
-        // Must sustain the targeted pitch steadily for the required duration
-        if (held >= HOLD_TIME_MS) {
+        if (held >= holdTime) {
           stopListening();
           onSolved();
           return;
         }
       } else {
-        // Reset timer immediately if pitch strays to another note or swara
         matchStartTime = null;
-        if (holdReadout) holdReadout.textContent = "Wrong pitch!";
+        if (holdReadout) holdReadout.textContent = "Adjust pitch";
       }
     } else {
-      // Noise / Silence handling
       matchStartTime = null;
       if (meterFill) meterFill.style.width = "0%";
       if (holdReadout) holdReadout.textContent = "";
@@ -324,7 +343,7 @@ function stopListening() {
   if (holdReadout) holdReadout.textContent = "";
 }
 
-function updateSideMeter(freq, targetFreq) {
+function updateSideMeter(freq, targetFreq, tolerance) {
   if (!sideMeterFill || !sideMeterTarget) return;
 
   const [lo, hi] = METER_DISPLAY_RANGE_HZ;
@@ -341,9 +360,7 @@ function updateSideMeter(freq, targetFreq) {
 
     const cents = centsBetween(freq, targetFreq);
     sideMeterFill.style.background =
-      Math.abs(cents) <= MATCH_TOLERANCE_CENTS
-        ? "#97C459"
-        : "var(--button-color)";
+      Math.abs(cents) <= tolerance ? "#97C459" : "var(--button-color)";
   } else {
     sideMeterFill.style.width = "0%";
     sideMeterFill.style.background = "var(--button-color)";
@@ -356,23 +373,27 @@ function clampPct(v) {
 }
 
 /* =====================================
-   RANDOM SWARA GENERATOR
+   PROGRESSIVE SEQUENCE GENERATOR
 ===================================== */
 
-function generateRandomSequence() {
-  const stages = ["Operand 1", "Operator", "Operand 2"];
+function generateProgressiveSequence() {
   const sequence = [];
 
-  for (let i = 0; i < 3; i++) {
-    let randomIndex;
-    do {
-      randomIndex = Math.floor(Math.random() * SWARA_POOL.length);
-    } while (i > 0 && SWARA_POOL[randomIndex].name === sequence[i - 1].name);
+  for (let i = 0; i < LEVEL_CONFIGS.length; i++) {
+    const config = LEVEL_CONFIGS[i];
+    const allowedIndices = config.swaraPoolIndex;
+    
+    // Pick a swara from the tier-appropriate pool
+    const selectedIndex =
+      allowedIndices[Math.floor(Math.random() * allowedIndices.length)];
+    const swaraItem = SWARA_POOL[selectedIndex];
 
     sequence.push({
-      stage: stages[i],
-      name: SWARA_POOL[randomIndex].name,
-      targetFreq: SWARA_POOL[randomIndex].targetFreq,
+      stage: config.stage,
+      name: swaraItem.name,
+      targetFreq: swaraItem.targetFreq,
+      toleranceCents: config.toleranceCents,
+      holdTimeMs: config.holdTimeMs,
     });
   }
 
@@ -409,7 +430,7 @@ async function startGame() {
   const micReady = await startMicrophone();
   if (!micReady) return;
 
-  activeSwarasSequence = generateRandomSequence();
+  activeSwarasSequence = generateProgressiveSequence();
 
   if (game) game.hidden = false;
   currentLevel = 0;
@@ -453,7 +474,7 @@ function prepareLevel() {
   if (answer) answer.textContent = "";
   if (resetButton) resetButton.hidden = true;
 
-  updateSideMeter(-1, currentSwara.targetFreq);
+  updateSideMeter(-1, currentSwara.targetFreq, currentSwara.toleranceCents);
 }
 
 if (swaraButton) {
@@ -463,7 +484,7 @@ if (swaraButton) {
     swaraButton.classList.add("listening");
 
     const currentSwara = activeSwarasSequence[currentLevel];
-    startListening(currentSwara.targetFreq, function () {
+    startListening(currentSwara, function () {
       solveSwara();
     });
   });
