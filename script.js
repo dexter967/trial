@@ -1,9 +1,6 @@
 /* =====================================
-   SWARITHMETIC - JAVASCRIPT
-===================================== */
-
-/* =====================================
-   GET DOM ELEMENTS
+   SWARITHMETIC — GAME LOGIC
+   (mic listening, YIN pitch detection, level flow)
 ===================================== */
 
 const opButton = document.getElementById("opButton");
@@ -65,7 +62,7 @@ const LEVEL_CONFIGS = [
   },
   {
     stage: "Operand 2",
-    toleranceCents: 35, // Accurate matching requirement
+    toleranceCents: 35, // Accurate matching requirement, highest register — the hardest step
     holdTimeMs: 650,    // Sustained pitch duration
     swaraPoolIndex: [3, 4, 5, 6, 7] // Advanced Swaras including high SA'
   }
@@ -91,52 +88,24 @@ let matchStartTime = null;
 ===================================== */
 
 const operators = [
-  {
-    symbol: "+",
-    theme: "plus",
-    panelColor: "#D8E6F3",
-    buttonColor: "#5B8DBE",
-    textColor: "#1F3B57",
-    subColor: "#3D5568",
-  },
-  {
-    symbol: "\u2212",
-    theme: "minus",
-    panelColor: "#E4E4E4",
-    buttonColor: "#3A3A3A",
-    textColor: "#2E2E2E",
-    subColor: "#5A5A5A",
-  },
-  {
-    symbol: "\u00D7",
-    theme: "times",
-    panelColor: "#F8DCE7",
-    buttonColor: "#D46A93",
-    textColor: "#7A2E48",
-    subColor: "#8A4D63",
-  },
-  {
-    symbol: "\u00F7",
-    theme: "divide",
-    panelColor: "#E8E8E2",
-    buttonColor: "#888884",
-    textColor: "#4A4A46",
-    subColor: "#6B6B66",
-  },
+  { symbol: "+", theme: "plus", buttonColor: "#6b3fd4" },       // violet
+  { symbol: "\u2212", theme: "minus", buttonColor: "#12b3a8" }, // teal
+  { symbol: "\u00D7", theme: "times", buttonColor: "#d63a86" }, // magenta
+  { symbol: "\u00F7", theme: "divide", buttonColor: "#c8a46a" },// gold
 ];
 
 let operatorIndex = 0;
 
 /* =====================================
    THEME SWITCHING
+   Only the accent color changes with the operator — the rest of the
+   calculator shares the landing page's ink/white palette so the two
+   pages read as one site instead of two clashing color schemes.
 ===================================== */
 
 function applyTheme(operator) {
   document.body.dataset.theme = operator.theme;
-  document.body.style.setProperty("--panel-color", operator.panelColor);
   document.body.style.setProperty("--button-color", operator.buttonColor);
-  document.body.style.setProperty("--text-color", operator.textColor);
-  document.body.style.setProperty("--sub-color", operator.subColor);
 }
 
 applyTheme(operators[operatorIndex]);
@@ -289,6 +258,8 @@ function startListening(targetSwara, onSolved) {
   const targetFreq = targetSwara.targetFreq;
 
   function frame() {
+    if (!analyser || !audioContext) return;
+
     analyser.getFloatTimeDomainData(audioData);
     const result = detectPitchYin(audioData, audioContext.sampleRate);
 
@@ -362,10 +333,10 @@ function updateSideMeter(freq, targetFreq, tolerance) {
     // Map octave-normalized pitch relative to the dynamic window
     const cents = centsBetween(freq, targetFreq);
     const normalizedFreq = targetFreq * Math.pow(2, cents / 1200);
-    
+
     const pct = clampPct(((normalizedFreq - lo) / (hi - lo)) * 100);
     sideMeterFill.style.width = pct + "%";
-    
+
     if (pitchReadout) pitchReadout.textContent = Math.round(freq) + " Hz";
 
     sideMeterFill.style.background =
@@ -391,7 +362,7 @@ function generateProgressiveSequence() {
   for (let i = 0; i < LEVEL_CONFIGS.length; i++) {
     const config = LEVEL_CONFIGS[i];
     const allowedIndices = config.swaraPoolIndex;
-    
+
     const selectedIndex =
       allowedIndices[Math.floor(Math.random() * allowedIndices.length)];
     const swaraItem = SWARA_POOL[selectedIndex];
@@ -566,7 +537,7 @@ if (resetButton) {
     if (equation) equation.textContent = "";
     if (answer) answer.textContent = "";
     clearError();
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (game) game.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 }
 
