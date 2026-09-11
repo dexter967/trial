@@ -28,12 +28,11 @@ const targetReadout = document.getElementById("targetReadout");
 const holdReadout = document.getElementById("holdReadout");
 
 /* =====================================
-   TUNABLES & DETECTOR SETTINGS
+   TUNABLES & DETECTOR SETTINGS (CALIBRATED FOR MOBILE/LAPTOP MIC)
 ===================================== */
 
-const MIN_RMS = 0.035; // Minimum signal loudness to ignore quiet ambient noise
-const YIN_THRESHOLD = 0.15; // Harmonic clarity threshold (ignores unpitched noise/talking)
-const METER_DISPLAY_RANGE_HZ = [200, 600]; // Visual scale bounds for side meter
+const MIN_RMS = 0.01; // Lowered to reliably pick up normal human voice levels
+const YIN_THRESHOLD = 0.25; // Adjusted to allow standard singing voices without rejecting them
 
 /* =====================================
    SWARA FREQUENCY POOL & DIFFICULTY PROFILES
@@ -50,25 +49,25 @@ const SWARA_POOL = [
   { name: "SA'", targetFreq: 523.25 }, // High C (C5)
 ];
 
-// Progressive Difficulty Configuration
+// Dynamic Progression Configuration
 const LEVEL_CONFIGS = [
   {
     stage: "Operand 1",
-    toleranceCents: 55, // Generous tolerance for Step 1
-    holdTimeMs: 400,    // Quick hold requirement
-    swaraPoolIndex: [0] // Always Start with SA (Root Note) for an easy start
+    toleranceCents: 85, // Generous tolerance for easy Level 1 start
+    holdTimeMs: 350,    // Shorter hold duration for low difficulty
+    swaraPoolIndex: [0] // Level 1 is fixed to SA (Base Root Pitch)
   },
   {
     stage: "Operator",
-    toleranceCents: 40, // Balanced tolerance
-    holdTimeMs: 600,    // Standard hold time
-    swaraPoolIndex: [1, 2, 3, 4, 5, 6] // Mid-range Swaras (RI to NI)
+    toleranceCents: 50, // Standard intermediate tolerance
+    holdTimeMs: 500,    // Standard hold time
+    swaraPoolIndex: [1, 2, 3, 4] // Mid-register Swaras (RI to PA)
   },
   {
     stage: "Operand 2",
-    toleranceCents: 25, // Strict pitch accuracy requirement
-    holdTimeMs: 750,    // Sustained pitch requirement
-    swaraPoolIndex: [2, 3, 4, 5, 6, 7] // Advanced Swaras including High SA'
+    toleranceCents: 35, // Accurate matching requirement
+    holdTimeMs: 650,    // Sustained pitch duration
+    swaraPoolIndex: [3, 4, 5, 6, 7] // Advanced Swaras including high SA'
   }
 ];
 
@@ -163,7 +162,7 @@ async function startMicrophone() {
       audio: {
         echoCancellation: true,
         noiseSuppression: true,
-        autoGainControl: false,
+        autoGainControl: true,
       },
     });
 
@@ -270,6 +269,7 @@ function detectPitchYin(buffer, sampleRate) {
 function centsBetween(freqA, freqB) {
   let cents = 1200 * Math.log2(freqA / freqB);
 
+  // Normalizes across octaves for both lower and higher vocal pitch ranges
   cents = cents % 1200;
   if (cents > 600) cents -= 1200;
   if (cents < -600) cents += 1200;
@@ -278,7 +278,7 @@ function centsBetween(freqA, freqB) {
 }
 
 /* =====================================
-   LISTEN LOOP & DYNAMIC LEVEL MATCHING
+   LISTEN LOOP & MATCHING PROCESS
 ===================================== */
 
 function startListening(targetSwara, onSolved) {
@@ -299,7 +299,8 @@ function startListening(targetSwara, onSolved) {
       const absCents = Math.abs(cents);
       const isCorrectSwara = absCents <= tolerance;
 
-      const closeness = Math.max(0, 1 - absCents / (tolerance * 2.5));
+      // Update closeness progress bar smoothly across range
+      const closeness = Math.max(0, 1 - absCents / (tolerance * 2.0));
       if (meterFill) meterFill.style.width = Math.round(closeness * 100) + "%";
 
       if (isCorrectSwara) {
@@ -346,19 +347,27 @@ function stopListening() {
 function updateSideMeter(freq, targetFreq, tolerance) {
   if (!sideMeterFill || !sideMeterTarget) return;
 
-  const [lo, hi] = METER_DISPLAY_RANGE_HZ;
-  const targetPct = clampPct(((targetFreq - lo) / (hi - lo)) * 100);
+  // Dynamic visual window auto-centered on active target pitch
+  const lo = Math.max(80, targetFreq * 0.5);
+  const hi = targetFreq * 1.5;
 
+  const targetPct = clampPct(((targetFreq - lo) / (hi - lo)) * 100);
   sideMeterTarget.style.left = targetPct + "%";
-  if (targetReadout)
+
+  if (targetReadout) {
     targetReadout.textContent = "target ~" + Math.round(targetFreq) + " Hz";
+  }
 
   if (freq > 0) {
-    const pct = clampPct(((freq - lo) / (hi - lo)) * 100);
+    // Map octave-normalized pitch relative to the dynamic window
+    const cents = centsBetween(freq, targetFreq);
+    const normalizedFreq = targetFreq * Math.pow(2, cents / 1200);
+    
+    const pct = clampPct(((normalizedFreq - lo) / (hi - lo)) * 100);
     sideMeterFill.style.width = pct + "%";
+    
     if (pitchReadout) pitchReadout.textContent = Math.round(freq) + " Hz";
 
-    const cents = centsBetween(freq, targetFreq);
     sideMeterFill.style.background =
       Math.abs(cents) <= tolerance ? "#97C459" : "var(--button-color)";
   } else {
@@ -383,7 +392,6 @@ function generateProgressiveSequence() {
     const config = LEVEL_CONFIGS[i];
     const allowedIndices = config.swaraPoolIndex;
     
-    // Pick a swara from the tier-appropriate pool
     const selectedIndex =
       allowedIndices[Math.floor(Math.random() * allowedIndices.length)];
     const swaraItem = SWARA_POOL[selectedIndex];
