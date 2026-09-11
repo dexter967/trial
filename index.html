@@ -1,116 +1,340 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Swarithmetic — Adding numbers, making music.</title>
 
-    <title>Swarithmetic</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=Cinzel:wght@400;600;700;800;900&family=IM+Fell+English:ital@0;1&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
 
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap"
-      rel="stylesheet"
-    />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/MotionPathPlugin.min.js"></script>
 
-    <link rel="stylesheet" href="style.css" />
-  </head>
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-theme="plus">
 
-  <body data-theme="plus">
-    <header class="page-header">
-      <span class="page-title">SWARITHMETIC</span>
-      <span class="page-sub">sing to solve</span>
-    </header>
+<div class="page-bg"></div>
+<div class="bg-layer" id="bg-1"></div>
+<div class="bg-layer" id="bg-2"></div>
+<div class="bg-layer" id="bg-3"></div>
 
-    <div class="page">
-      <!-- ===== Calculator ===== -->
-      <section class="console" id="console">
-        <div class="console-row">
-          <div class="field">
-            <input
-              type="number"
-              id="num1"
-              class="operand-input"
-              placeholder="4"
-              min="0"
-              max="999"
-            />
-            <label>operand 1</label>
-          </div>
+<div class="floaters" id="floaters"></div>
 
-          <div class="field">
-            <button id="opButton" class="op-button" type="button">+</button>
-            <label>operator</label>
-          </div>
+<nav>
+  <div class="nav-brand"><em>Swari</em>thmetic</div>
+  <ul class="nav-links">
+    <li><a href="#instructions">Instructions</a></li>
+    <li><a href="#about">About</a></li>
+  </ul>
+</nav>
 
-          <div class="field">
-            <input
-              type="number"
-              id="num2"
-              class="operand-input"
-              placeholder="6"
-              min="0"
-              max="999"
-            />
-            <label>operand 2</label>
-          </div>
-        </div>
+<!-- ═══ SCROLL-DRIVEN HERO ═══ -->
+<div id="hero-pin-space">
+  <section id="hero">
 
-        <button id="calculateButton" class="calculate-button" type="button">
-          CALCULATE &#9654;
-        </button>
-        <p id="errorMessage" class="error-text"></p>
-      </section>
-
-      <!-- ===== Game + Live Pitch Area ===== -->
-      <div id="game" class="game-area" hidden>
-        <section class="game">
-          <div id="level" class="level-badge">STEP 1 / 3</div>
-
-          <div class="meter-track">
-            <div id="targetLine" class="target-line"></div>
-            <div id="meterFill" class="meter-fill"></div>
-          </div>
-          <p class="meter-caption">how close you are</p>
-
-          <div id="stage" class="stage">
-            <div class="mic-hint">
-              Tap the swara, then sing and hold the note
-            </div>
-            <button id="swaraButton" class="swara-circle" type="button">
-              SA
-            </button>
-            <div id="stepLabel" class="step-label">target: ~262 Hz</div>
-          </div>
-
-          <p id="equation" class="equation-line"></p>
-          <p id="answer" class="answer-line"></p>
-
-          <button id="resetButton" class="reset-button" type="button" hidden>
-            sing again &#8599;
-          </button>
-        </section>
-
-        <!-- ===== Side Pitch Meter ===== -->
-        <aside class="side-meter">
-          <p class="side-meter-title">live pitch</p>
-          <div class="side-meter-track">
-            <div id="sideMeterTarget" class="side-meter-target"></div>
-            <div id="sideMeterFill" class="side-meter-fill"></div>
-          </div>
-          <p class="side-meter-readout">
-            <span id="pitchReadout">-- Hz</span>
-            <span id="targetReadout" class="side-meter-sub"></span>
-          </p>
-          <p
-            id="holdReadout"
-            class="side-meter-sub"
-            style="text-align: center; margin-top: 8px"
-          ></p>
-        </aside>
-      </div>
+    <div class="reveal-text" id="label-duma">
+      <span class="reveal-inner" id="duma-inner">dumbaliscious</span>
     </div>
 
-    <script src="script.js"></script>
-  </body>
+    <div class="reveal-text" id="label-swari">
+      <span class="reveal-inner" id="swari-inner">swarithmetic</span>
+    </div>
+
+    <div class="reveal-text" id="label-tag">
+      <span class="reveal-inner" id="tag-inner">Sing your way to the answer.</span>
+    </div>
+
+    <svg id="flight-canvas" viewBox="0 0 1000 600" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="trailGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%"   stop-color="#6b3fd4" stop-opacity="0.95"/>
+          <stop offset="45%"  stop-color="#d63a86" stop-opacity="0.9"/>
+          <stop offset="100%" stop-color="#ff7a52" stop-opacity="0.85"/>
+        </linearGradient>
+
+        <filter id="planeGlow" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation="4" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+
+        <path id="motionPath"
+          d="M 80,520
+             C 120,420 160,260 300,180
+             C 400,120 480,100 550,140
+             C 650,190 700,300 750,380
+             C 800,460 860,500 940,480"
+          fill="none"/>
+      </defs>
+
+      <use href="#motionPath" id="trail-path"/>
+
+      <g id="plane-group" filter="url(#planeGlow)">
+        <g id="plane-shape" transform="scale(1.35)">
+          <polygon points="0,-10 18,0 0,4" fill="#201830" opacity="0.9"/>
+          <polygon points="0,-10 -14,6 0,4" fill="#6b3fd4" opacity="0.85"/>
+          <line x1="0" y1="-10" x2="0" y2="4" stroke="rgba(255,255,255,.5)" stroke-width=".9"/>
+          <circle cx="-14" cy="6" r="2.5" fill="#d63a86" opacity="0.9"/>
+          <circle cx="-16" cy="7" r="1.5" fill="#ff7a52" opacity="0.8"/>
+          <circle cx="-18" cy="8" r="1"   fill="#f6b93b" opacity="0.7"/>
+        </g>
+      </g>
+    </svg>
+
+    <div class="scroll-hint" id="scroll-hint">
+      <span>Scroll</span>
+      <div class="scroll-line"></div>
+    </div>
+  </section>
+</div>
+
+<!-- ═══ MAIN CONTENT ═══ -->
+<main>
+
+  <section id="instructions">
+    <div class="section-eye">The Concept</div>
+    <h2 class="section-h2">A Gloriously Useless Calculator</h2>
+    <div class="divider-line"></div>
+    <p class="section-body">
+      Swarithmetic solves addition, subtraction, multiplication and division —
+      just not the easy way. Instead of pressing equals, you sing. Every number
+      is unlocked one swara at a time: Sa, Re, Ga, Ma, Pa, Da or Ni, chosen at
+      random, sung and held until your pitch locks in.
+    </p>
+  </section>
+
+  <section id="how-it-works">
+    <div class="feat">
+      <span class="feat-sym">①</span>
+      <div class="feat-title">Level 1 — First Operand</div>
+      <div class="feat-desc">A gentle start. Sing the swara for your first number with generous pitch tolerance and a short hold.</div>
+    </div>
+    <div class="feat">
+      <span class="feat-sym">②</span>
+      <div class="feat-title">Level 2 — Operator</div>
+      <div class="feat-desc">Things tighten up. Sing the swara that locks in +, −, × or ÷ with a steadier hold.</div>
+    </div>
+    <div class="feat">
+      <span class="feat-sym">③</span>
+      <div class="feat-title">Level 3 — Second Operand</div>
+      <div class="feat-desc">The hardest step — a higher swara, precise pitch, held the longest before your answer appears.</div>
+    </div>
+  </section>
+
+  <section id="play-cta">
+    <p class="play-caption">Ready to make some noise?</p>
+    <button id="startCalcBtn" class="play-button" type="button">Start Calculating &#8594;</button>
+  </section>
+
+  <section id="about">
+    <div class="section-eye">What We Built</div>
+    <h2 class="section-h2">Where Numbers Sing</h2>
+    <div class="divider-line"></div>
+    <p class="section-body">
+      Every note is a frequency. Every chord is a ratio. Every rhythm is a
+      fraction. We built a tool that makes those connections visible, playful
+      and just a little bit ridiculous — a calculator that asks you to sing
+      before it gives you an answer.
+    </p>
+
+    <div class="credit-block">
+      <span class="credit-label">Built by</span>
+      <ul class="credit-list">
+        <li>&mdash; Abhijith</li>
+        <li>&mdash; Akshada</li>
+      </ul>
+    </div>
+  </section>
+
+</main>
+
+<footer>© 2026 Swarithmetic by Abhijith &amp; Akshada</footer>
+
+<!-- ═══ THE CALCULATOR (hidden until "Start Calculating" is pressed) ═══ -->
+<section id="game-wrapper" class="game-page" hidden>
+  <button id="backToSiteBtn" class="back-link" type="button">&#8592; Back</button>
+
+  <header class="page-header">
+    <span class="page-title">SWARITHMETIC</span>
+    <span class="page-sub">sing to solve</span>
+  </header>
+
+  <div class="page">
+    <section class="console" id="console">
+      <div class="console-row">
+        <div class="field">
+          <input type="number" id="num1" class="operand-input" placeholder="4" min="0" max="999">
+          <label>operand 1</label>
+        </div>
+
+        <div class="field">
+          <button id="opButton" class="op-button" type="button">+</button>
+          <label>operator</label>
+        </div>
+
+        <div class="field">
+          <input type="number" id="num2" class="operand-input" placeholder="6" min="0" max="999">
+          <label>operand 2</label>
+        </div>
+      </div>
+
+      <button id="calculateButton" class="calculate-button" type="button">CALCULATE &#9654;</button>
+      <p id="errorMessage" class="error-text"></p>
+    </section>
+
+    <div id="game" class="game-area" hidden>
+      <section class="game">
+        <div id="level" class="level-badge">STEP 1 / 3</div>
+
+        <div class="meter-track">
+          <div id="targetLine" class="target-line"></div>
+          <div id="meterFill" class="meter-fill"></div>
+        </div>
+        <p class="meter-caption">how close you are</p>
+
+        <div id="stage" class="stage">
+          <div class="mic-hint">Tap the swara, then sing and hold the note</div>
+          <button id="swaraButton" class="swara-circle" type="button">SA</button>
+          <div id="stepLabel" class="step-label">target: ~262 Hz</div>
+        </div>
+
+        <p id="equation" class="equation-line"></p>
+        <p id="answer" class="answer-line"></p>
+
+        <button id="resetButton" class="reset-button" type="button" hidden>sing again &#8599;</button>
+      </section>
+
+      <aside class="side-meter">
+        <p class="side-meter-title">live pitch</p>
+        <div class="side-meter-track">
+          <div id="sideMeterTarget" class="side-meter-target"></div>
+          <div id="sideMeterFill" class="side-meter-fill"></div>
+        </div>
+        <p class="side-meter-readout">
+          <span id="pitchReadout">-- Hz</span>
+          <span id="targetReadout" class="side-meter-sub"></span>
+        </p>
+        <p id="holdReadout" class="side-meter-sub" style="text-align:center; margin-top:8px"></p>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<script>
+gsap.registerPlugin(MotionPathPlugin, ScrollTrigger);
+
+const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ── Floating symbols (bigger, smoother, more of them) ── */
+const symbols = ['♩','♪','♫','♬','∑','÷','×','√','π','∞','♭','♯','+','−','='];
+const floaters = document.getElementById('floaters');
+if (floaters && !prefersReducedMotion) {
+  const SYMBOL_COUNT = 30;
+  for (let i = 0; i < SYMBOL_COUNT; i++) {
+    const el = document.createElement('div');
+    el.className = 'float-sym';
+    el.textContent = symbols[Math.floor(Math.random() * symbols.length)];
+    const sz = 18 + Math.random() * 40;
+    el.style.cssText = `
+      left:${Math.random() * 100}%;
+      top:${15 + Math.random() * 70}%;
+      font-size:${sz}px;
+      --dur:${14 + Math.random() * 16}s;
+      --delay:${Math.random() * 14}s;
+      --rot:${(Math.random() - 0.5) * 34}deg;
+      --op:${0.06 + Math.random() * 0.1};
+      --drift:${(Math.random() - 0.5) * 60}px;
+    `;
+    floaters.appendChild(el);
+  }
+}
+
+/* ── SCROLL-DRIVEN FLIGHT SEQUENCE ── */
+const motionPath = document.getElementById('motionPath');
+const trailPath  = document.getElementById('trail-path');
+const planeGroup = document.getElementById('plane-group');
+const dumaInner  = document.getElementById('duma-inner');
+const swariInner = document.getElementById('swari-inner');
+const tagInner   = document.getElementById('tag-inner');
+const scrollHint = document.getElementById('scroll-hint');
+
+if (motionPath && trailPath && planeGroup) {
+  const pathLen = motionPath.getTotalLength();
+  gsap.set(trailPath, { strokeDasharray: pathLen, strokeDashoffset: pathLen });
+  gsap.set(planeGroup, { opacity: 0 });
+
+  const heroTl = gsap.timeline({
+    scrollTrigger: {
+      trigger: '#hero-pin-space',
+      start: 'top top',
+      end: 'bottom bottom',
+      pin: '#hero',
+      scrub: 0.6,
+    },
+  });
+
+  ScrollTrigger.create({
+    trigger: '#hero-pin-space',
+    start: 'top top',
+    end: '+=1',
+    onEnter: () => gsap.to(scrollHint, { opacity: 0, duration: .3 }),
+    onLeaveBack: () => gsap.to(scrollHint, { opacity: 1, duration: .3 }),
+  });
+
+  heroTl.to(planeGroup, { opacity: 1, duration: 0.06, ease: 'none' }, 0);
+
+  heroTl.to(planeGroup, {
+    duration: 0.78,
+    ease: 'none',
+    motionPath: {
+      path: '#motionPath',
+      align: '#motionPath',
+      autoRotate: true,
+      alignOrigin: [0.5, 0.5],
+    },
+  }, 0);
+
+  heroTl.to(trailPath, { strokeDashoffset: 0, duration: 0.78, ease: 'none' }, 0);
+
+  heroTl.to('#bg-1', { opacity: 0, duration: 0.5, ease: 'none' }, 0.05);
+  heroTl.to('#bg-2', { opacity: 1, duration: 0.4, ease: 'none' }, 0.15);
+  heroTl.to('#bg-2', { opacity: 0, duration: 0.35, ease: 'none' }, 0.55);
+  heroTl.to('#bg-3', { opacity: 1, duration: 0.45, ease: 'none' }, 0.5);
+
+  heroTl.to(dumaInner, { y: '0%', duration: 0.12, ease: 'power3.out' }, 0.22);
+  heroTl.to(swariInner, { y: '0%', duration: 0.14, ease: 'power3.out' }, 0.6);
+  heroTl.to(tagInner, { y: '0%', duration: 0.1, ease: 'power2.out' }, 0.86);
+
+  heroTl.to(planeGroup, { opacity: 0, duration: 0.08, ease: 'none' }, 0.9);
+  heroTl.to(trailPath, { opacity: 0, duration: 0.1, ease: 'none' }, 0.92);
+
+  heroTl.to('#bg-3', { opacity: 0, duration: 0.08, ease: 'none' }, 0.94);
+}
+
+/* ── PAGE SWITCH: calculator stays hidden until "Start Calculating" ── */
+const gameWrapper = document.getElementById('game-wrapper');
+const startCalcBtn = document.getElementById('startCalcBtn');
+const backToSiteBtn = document.getElementById('backToSiteBtn');
+
+if (startCalcBtn && gameWrapper) {
+  startCalcBtn.addEventListener('click', function () {
+    gameWrapper.hidden = false;
+    gameWrapper.scrollTop = 0;
+    document.body.classList.add('calculator-open');
+  });
+}
+
+if (backToSiteBtn && gameWrapper) {
+  backToSiteBtn.addEventListener('click', function () {
+    gameWrapper.hidden = true;
+    document.body.classList.remove('calculator-open');
+  });
+}
+</script>
+
+<script src="script.js"></script>
+</body>
 </html>
