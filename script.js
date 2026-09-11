@@ -22,7 +22,7 @@ const answer = document.getElementById("answer");
 const resetButton = document.getElementById("resetButton");
 
 /* =====================================
-   MICROPHONE STATE
+   MICROPHONE & PITCH STATE
 ===================================== */
 
 let audioContext = null;
@@ -30,6 +30,7 @@ let analyser = null;
 let microphone = null;
 let audioData = null;
 let microphoneStream = null;
+let isPitchDetecting = false;
 
 /* =====================================
    OPERATORS
@@ -96,171 +97,194 @@ function applyTheme(operator) {
   document.body.style.setProperty("--sub-color", operator.subColor);
 }
 
-// Apply starting theme
-applyTheme(operators[operatorIndex]);
+if (operators[operatorIndex]) {
+  applyTheme(operators[operatorIndex]);
+}
 
 /* =====================================
-   COLOR CHANGE
+   OPERATOR CLICK
 ===================================== */
 
-opButton.addEventListener("click", function () {
-  operatorIndex++;
-  if (operatorIndex >= operators.length) {
-    operatorIndex = 0;
-  }
+if (opButton) {
+  opButton.addEventListener("click", function () {
+    operatorIndex++;
+    if (operatorIndex >= operators.length) {
+      operatorIndex = 0;
+    }
 
-  const currentOperator = operators[operatorIndex];
-  opButton.textContent = currentOperator.symbol;
-  applyTheme(currentOperator);
-
-  opButton.animate(
-    [
-      { transform: "scale(0.9)" },
-      { transform: "scale(1.08)" },
-      { transform: "scale(1)" },
-    ],
-    {
-      duration: 300,
-      easing: "ease-out",
-    },
-  );
-});
+    const currentOperator = operators[operatorIndex];
+    opButton.textContent = currentOperator.symbol;
+    applyTheme(currentOperator);
+  });
+}
 
 /* =====================================
-   START MICROPHONE
+   MICROPHONE INITIALIZATION
 ===================================== */
 
 async function startMicrophone() {
-  try {
-    // 1. Create or resume AudioContext immediately on user gesture
-    if (!audioContext) {
-      audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    }
-    if (audioContext.state === "suspended") {
-      await audioContext.resume();
-    }
+  clearError();
 
-    // 2. Request microphone access (triggers browser permission popup if reset)
+  try {
+    // Force direct prompt request
     microphoneStream = await navigator.mediaDevices.getUserMedia({
       audio: true,
     });
 
-    // 3. Connect stream to Web Audio API
+    // Handle browser autoplay restriction policies
+    if (!audioContext) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      audioContext = new AudioCtx();
+    }
+
+    if (audioContext.state === "suspended") {
+      await audioContext.resume();
+    }
+
     microphone = audioContext.createMediaStreamSource(microphoneStream);
     analyser = audioContext.createAnalyser();
-    analyser.fftSize = 2048;
+    analyser.fftSize = 1024;
 
     microphone.connect(analyser);
     audioData = new Float32Array(analyser.fftSize);
 
-    console.log("Microphone connected successfully");
+    isPitchDetecting = true;
+    listenAudio();
+
     return true;
-  } catch (error) {
-    console.error("Microphone access failed:", error);
+  } catch (err) {
+    console.error("Microphone Access Error:", err);
     showError(
-      "Microphone access was denied. Please allow microphone permissions in your browser address bar and try again.",
+      "Could not connect to microphone. Check hardware settings or reload.",
     );
     return false;
   }
 }
 
 /* =====================================
-   CALCULATE
+   AUDIO ANALYSIS & METER UPDATE
 ===================================== */
 
-calculateButton.addEventListener("click", startGame);
+function listenAudio() {
+  if (!isPitchDetecting || !analyser) return;
+
+  analyser.getFloatTimeDomainData(audioData);
+
+  // Calculate volume level (RMS)
+  let sum = 0;
+  for (let i = 0; i < audioData.length; i++) {
+    sum += audioData[i] * audioData[i];
+  }
+  let rms = Math.sqrt(sum / audioData.length);
+  let volumePercent = Math.min(100, Math.round(rms * 400)); // Scale volume for display
+
+  // If microphone detects sound, reflect volume on meter
+  if (meterFill && volumePercent > 5) {
+    meterFill.style.width = volumePercent + "%";
+
+    const currentSwara = swaras[currentLevel] || swaras[0];
+    if (Math.abs(volumePercent - currentSwara.target) <= 4) {
+      solveSwara();
+    }
+  }
+
+  requestAnimationFrame(listenAudio);
+}
+
+/* =====================================
+   CALCULATE / START GAME
+===================================== */
+
+if (calculateButton) {
+  calculateButton.addEventListener("click", startGame);
+}
 
 async function startGame() {
   clearError();
 
-  const a = Number(num1.value);
-  const b = Number(num2.value);
+  const a = Number(num1 ? num1.value : 0);
+  const b = Number(num2 ? num2.value : 0);
 
-  /* Check input */
-  if (num1.value === "" || num2.value === "") {
+  if (!num1 || !num2 || num1.value === "" || num2.value === "") {
     showError("Enter both numbers first.");
     return;
   }
 
-  /* 3-digit limit */
   if (a < 0 || a > 999 || b < 0 || b > 999) {
     showError("Numbers must be between 0 and 999.");
     return;
   }
 
-  /* Division by zero */
   if (operatorIndex === 3 && b === 0) {
     showError("Cannot divide by zero.");
     return;
   }
 
-  /* Start microphone */
-  const micReady = await startMicrophone();
-  if (!micReady) {
-    return;
+  // Reveal section immediately
+  if (game) {
+    game.hidden = false;
   }
 
-  /* Show game section */
-  game.hidden = false;
-
-  /* Reset level */
   currentLevel = 0;
-
-  /* Display game */
   prepareLevel();
 
-  /* Move screen down smoothly */
+  // Initialize microphone stream
+  await startMicrophone();
+
   setTimeout(function () {
-    game.scrollIntoView({
-      behavior: "smooth",
-      block: "center",
-    });
+    if (game) {
+      game.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }
   }, 100);
 }
 
 /* =====================================
-   PREPARE LEVEL
+   GAME CONTROLS
 ===================================== */
 
 function prepareLevel() {
-  const currentSwara = swaras[currentLevel];
+  const currentSwara = swaras[currentLevel] || swaras[0];
 
-  level.textContent = "LEVEL " + (currentLevel + 1) + " / " + swaras.length;
-  swaraButton.textContent = currentSwara.name;
-  swaraButton.classList.remove("solved", "listening");
+  if (level)
+    level.textContent = "LEVEL " + (currentLevel + 1) + " / " + swaras.length;
+  if (swaraButton) {
+    swaraButton.textContent = currentSwara.name;
+    swaraButton.classList.remove("solved", "listening");
+  }
 
-  stepLabel.textContent = "target: " + currentSwara.target + "%";
-  stepLabel.classList.remove("solved");
+  if (stepLabel) {
+    stepLabel.textContent = "target: " + currentSwara.target + "%";
+    stepLabel.classList.remove("solved");
+  }
 
-  meterFill.style.width = "0%";
-  targetLine.style.left = currentSwara.target + "%";
+  if (meterFill) meterFill.style.width = "0%";
+  if (targetLine) targetLine.style.left = currentSwara.target + "%";
 
-  equation.textContent = "";
-  answer.textContent = "";
-  resetButton.hidden = true;
+  if (equation) equation.textContent = "";
+  if (answer) answer.textContent = "";
+  if (resetButton) resetButton.hidden = true;
 }
 
-/* =====================================
-   SWARA CLICK
-===================================== */
-
-swaraButton.addEventListener("click", singSwara);
+if (swaraButton) {
+  swaraButton.addEventListener("click", singSwara);
+}
 
 function singSwara() {
-  const currentSwara = swaras[currentLevel];
-  swaraButton.classList.add("listening");
+  const currentSwara = swaras[currentLevel] || swaras[0];
+  if (swaraButton) swaraButton.classList.add("listening");
 
-  /* DEMO MODE: Simulates meter filling */
   let value = 0;
   const direction = currentLevel % 2 === 0 ? 1 : -1;
 
   const interval = setInterval(function () {
     value += direction * 2;
-
     if (value < 0) value = 0;
     if (value > 100) value = 100;
 
-    meterFill.style.width = value + "%";
+    if (meterFill) meterFill.style.width = value + "%";
 
     if (Math.abs(value - currentSwara.target) <= 2) {
       clearInterval(interval);
@@ -269,17 +293,17 @@ function singSwara() {
   }, 30);
 }
 
-/* =====================================
-   SWARA SOLVED
-===================================== */
-
 function solveSwara() {
-  swaraButton.classList.remove("listening");
-  swaraButton.classList.add("solved");
-  swaraButton.textContent = "✓";
+  if (swaraButton) {
+    swaraButton.classList.remove("listening");
+    swaraButton.classList.add("solved");
+    swaraButton.textContent = "✓";
+  }
 
-  stepLabel.classList.add("solved");
-  stepLabel.textContent = "SWARA UNLOCKED!";
+  if (stepLabel) {
+    stepLabel.classList.add("solved");
+    stepLabel.textContent = "SWARA UNLOCKED!";
+  }
 
   setTimeout(function () {
     currentLevel++;
@@ -292,13 +316,9 @@ function solveSwara() {
   }, 900);
 }
 
-/* =====================================
-   FINAL RESULT
-===================================== */
-
 function showResult() {
-  const a = Number(num1.value);
-  const b = Number(num2.value);
+  const a = Number(num1 ? num1.value : 0);
+  const b = Number(num2 ? num2.value : 0);
   const symbol = operators[operatorIndex].symbol;
 
   let result;
@@ -317,58 +337,45 @@ function showResult() {
       break;
   }
 
-  equation.textContent = a + " " + symbol + " " + b;
-  answer.textContent = "= " + formatResult(result);
-  level.textContent = "ALL SWARAS UNLOCKED";
+  if (equation) equation.textContent = a + " " + symbol + " " + b;
+  if (answer) answer.textContent = "= " + formatResult(result);
+  if (level) level.textContent = "ALL SWARAS UNLOCKED";
 
-  meterFill.style.width = "100%";
-  swaraButton.classList.add("solved");
-  swaraButton.textContent = "✓";
+  if (meterFill) meterFill.style.width = "100%";
+  if (swaraButton) {
+    swaraButton.classList.add("solved");
+    swaraButton.textContent = "✓";
+  }
 
-  stepLabel.textContent = "CALCULATION UNLOCKED";
-  stepLabel.classList.add("solved");
+  if (stepLabel) {
+    stepLabel.textContent = "CALCULATION UNLOCKED";
+    stepLabel.classList.add("solved");
+  }
 
-  resetButton.hidden = false;
+  if (resetButton) resetButton.hidden = false;
 }
-
-/* =====================================
-   FORMAT RESULT
-===================================== */
 
 function formatResult(value) {
-  if (Number.isInteger(value)) {
-    return value;
-  }
-  return value.toFixed(2);
+  return Number.isInteger(value) ? value : value.toFixed(2);
 }
 
-/* =====================================
-   RESET
-===================================== */
+if (resetButton) {
+  resetButton.addEventListener("click", function () {
+    if (game) game.hidden = true;
+    currentLevel = 0;
+    if (meterFill) meterFill.style.width = "0%";
+    if (equation) equation.textContent = "";
+    if (answer) answer.textContent = "";
 
-resetButton.addEventListener("click", function () {
-  game.hidden = true;
-  currentLevel = 0;
-  meterFill.style.width = "0%";
-  equation.textContent = "";
-  answer.textContent = "";
-
-  clearError();
-
-  window.scrollTo({
-    top: 0,
-    behavior: "smooth",
+    clearError();
+    window.scrollTo({ top: 0, behavior: "smooth" });
   });
-});
-
-/* =====================================
-   ERROR HANDLING
-===================================== */
+}
 
 function showError(message) {
-  errorMessage.textContent = message;
+  if (errorMessage) errorMessage.textContent = message;
 }
 
 function clearError() {
-  errorMessage.textContent = "";
+  if (errorMessage) errorMessage.textContent = "";
 }

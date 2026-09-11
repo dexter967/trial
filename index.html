@@ -32,8 +32,8 @@
 
     <div class="page">
       <!-- =========================================
-         MAIN CALCULATOR
-    ========================================== -->
+           MAIN CALCULATOR
+      ========================================== -->
 
       <section class="console" id="console">
         <!-- =====================================
@@ -94,8 +94,8 @@
       </section>
 
       <!-- =========================================
-         GAME SECTION
-    ========================================== -->
+           GAME SECTION
+      ========================================== -->
 
       <section id="game" class="game" hidden>
         <!-- LEVEL -->
@@ -115,7 +115,7 @@
         <p class="meter-caption">sound level</p>
 
         <!-- =====================================
-             SWARA
+             SWARA & CANVAS GAME CONTAINER
         ====================================== -->
 
         <div id="stage" class="stage">
@@ -128,6 +128,23 @@
           <div id="stepLabel" class="step-label">target: 25%</div>
         </div>
 
+        <!-- GAME CANVAS & PITCH SCALE (OPTIONAL EXTENSION) -->
+        <div class="game-container hidden" id="gameCanvasContainer">
+          <div class="pitch-bar-container">
+            <span class="swara-label">GA</span>
+            <span class="swara-label">RI</span>
+            <span class="swara-label">SA</span>
+            <div id="pitchIndicator" class="pitch-indicator"></div>
+          </div>
+
+          <div class="canvas-wrapper">
+            <canvas id="gameCanvas" width="500" height="350"></canvas>
+            <button id="startFlightBtn" class="main-btn" type="button">
+              START FLIGHT
+            </button>
+          </div>
+        </div>
+
         <!-- EQUATION -->
 
         <p id="equation" class="equation-line"></p>
@@ -135,6 +152,17 @@
         <!-- ANSWER -->
 
         <p id="answer" class="answer-line"></p>
+
+        <!-- EQUATION UNLOCK CARD -->
+        <div id="equationCard" class="equation-card hidden">
+          <p id="exprDisplay" class="expression-display"></p>
+          <div class="input-group">
+            <input type="number" id="userResultInput" placeholder="Result" />
+            <button id="submitResultBtn" class="action-btn" type="button">
+              SUBMIT
+            </button>
+          </div>
+        </div>
 
         <!-- RESET -->
 
