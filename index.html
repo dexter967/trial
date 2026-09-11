@@ -6,7 +6,6 @@
 
     <title>Swarithmetic</title>
 
-    <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -14,22 +13,19 @@
       rel="stylesheet"
     />
 
-    <!-- CSS with cache buster -->
-    <link rel="stylesheet" href="style.css?v=2.0" />
+    <link rel="stylesheet" href="style.css" />
   </head>
 
   <body data-theme="plus">
-    <!-- PAGE HEADER -->
     <header class="page-header">
       <span class="page-title">SWARITHMETIC</span>
       <span class="page-sub">sing to solve</span>
     </header>
 
     <div class="page">
-      <!-- MAIN CALCULATOR -->
+      <!-- ===== Calculator ===== -->
       <section class="console" id="console">
         <div class="console-row">
-          <!-- OPERAND 1 -->
           <div class="field">
             <input
               type="number"
@@ -39,16 +35,14 @@
               min="0"
               max="999"
             />
-            <label for="num1">operand 1</label>
+            <label>operand 1</label>
           </div>
 
-          <!-- OPERATOR -->
           <div class="field">
             <button id="opButton" class="op-button" type="button">+</button>
             <label>operator</label>
           </div>
 
-          <!-- OPERAND 2 -->
           <div class="field">
             <input
               type="number"
@@ -58,80 +52,65 @@
               min="0"
               max="999"
             />
-            <label for="num2">operand 2</label>
+            <label>operand 2</label>
           </div>
         </div>
 
-        <!-- CALCULATE BUTTON -->
         <button id="calculateButton" class="calculate-button" type="button">
-          CALCULATE ▶
+          CALCULATE &#9654;
         </button>
-
-        <!-- ERROR MESSAGE -->
         <p id="errorMessage" class="error-text"></p>
       </section>
 
-      <!-- GAME SECTION -->
-      <section id="game" class="game" hidden>
-        <!-- LEVEL -->
-        <div id="level" class="level-badge">LEVEL 1 / 3</div>
+      <!-- ===== Game + Live Pitch Area ===== -->
+      <div id="game" class="game-area" hidden>
+        <section class="game">
+          <div id="level" class="level-badge">STEP 1 / 3</div>
 
-        <!-- SOUND METER -->
-        <div class="meter-track">
-          <div id="targetLine" class="target-line"></div>
-          <div id="meterFill" class="meter-fill"></div>
-        </div>
-        <p class="meter-caption">sound level</p>
+          <div class="meter-track">
+            <div id="targetLine" class="target-line"></div>
+            <div id="meterFill" class="meter-fill"></div>
+          </div>
+          <p class="meter-caption">how close you are</p>
 
-        <!-- SWARA CONTAINER -->
-        <div id="stage" class="stage">
-          <div class="mic-hint">Tap the swara and sing</div>
-          <button id="swaraButton" class="swara-circle" type="button">
-            SA
+          <div id="stage" class="stage">
+            <div class="mic-hint">
+              Tap the swara, then sing and hold the note
+            </div>
+            <button id="swaraButton" class="swara-circle" type="button">
+              SA
+            </button>
+            <div id="stepLabel" class="step-label">target: ~262 Hz</div>
+          </div>
+
+          <p id="equation" class="equation-line"></p>
+          <p id="answer" class="answer-line"></p>
+
+          <button id="resetButton" class="reset-button" type="button" hidden>
+            sing again &#8599;
           </button>
-          <div id="stepLabel" class="step-label">target: 25%</div>
-        </div>
+        </section>
 
-        <!-- GAME CANVAS & PITCH SCALE -->
-        <div class="game-container hidden" id="gameCanvasContainer">
-          <div class="pitch-bar-container">
-            <span class="swara-label">GA</span>
-            <span class="swara-label">RI</span>
-            <span class="swara-label">SA</span>
-            <div id="pitchIndicator" class="pitch-indicator"></div>
+        <!-- ===== Side Pitch Meter ===== -->
+        <aside class="side-meter">
+          <p class="side-meter-title">live pitch</p>
+          <div class="side-meter-track">
+            <div id="sideMeterTarget" class="side-meter-target"></div>
+            <div id="sideMeterFill" class="side-meter-fill"></div>
           </div>
-
-          <div class="canvas-wrapper">
-            <canvas id="gameCanvas" width="500" height="350"></canvas>
-            <button id="startFlightBtn" class="main-btn" type="button">
-              START FLIGHT
-            </button>
-          </div>
-        </div>
-
-        <!-- EQUATION & RESULTS -->
-        <p id="equation" class="equation-line"></p>
-        <p id="answer" class="answer-line"></p>
-
-        <!-- EQUATION UNLOCK CARD -->
-        <div id="equationCard" class="equation-card hidden">
-          <p id="exprDisplay" class="expression-display"></p>
-          <div class="input-group">
-            <input type="number" id="userResultInput" placeholder="Result" />
-            <button id="submitResultBtn" class="action-btn" type="button">
-              SUBMIT
-            </button>
-          </div>
-        </div>
-
-        <!-- RESET -->
-        <button id="resetButton" class="reset-button" type="button" hidden>
-          sing again ↗
-        </button>
-      </section>
+          <p class="side-meter-readout">
+            <span id="pitchReadout">-- Hz</span>
+            <span id="targetReadout" class="side-meter-sub"></span>
+          </p>
+          <p
+            id="holdReadout"
+            class="side-meter-sub"
+            style="text-align: center; margin-top: 8px"
+          ></p>
+        </aside>
+      </div>
     </div>
 
-    <!-- JavaScript -->
     <script src="script.js"></script>
   </body>
 </html>
