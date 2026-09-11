@@ -28,12 +28,13 @@ const targetReadout = document.getElementById("targetReadout");
 const holdReadout = document.getElementById("holdReadout");
 
 /* =====================================
-   TUNABLES
+   TUNABLES & DETECTOR SETTINGS
 ===================================== */
 
-const MATCH_TOLERANCE_CENTS = 35; // Sensitivity window for pitch matching
-const HOLD_TIME_MS = 600; // Time pitch must be held steady
-const MIN_RMS = 0.04; // Minimum loudness threshold
+const MATCH_TOLERANCE_CENTS = 35; // Sensitivity window for exact pitch matching (+/- 35 cents)
+const HOLD_TIME_MS = 600; // Pitch must be held continuously for 600ms
+const MIN_RMS = 0.035; // Minimum signal loudness to ignore quiet ambient noise
+const YIN_THRESHOLD = 0.15; // Harmonic clarity threshold (ignores unpitched noise/talking)
 const METER_DISPLAY_RANGE_HZ = [200, 600]; // Visual scale bounds for side meter
 
 /* =====================================
@@ -48,7 +49,7 @@ const SWARA_POOL = [
   { name: "PA", targetFreq: 392.00 }, // G4
   { name: "DHA", targetFreq: 440.00 }, // A4
   { name: "NI", targetFreq: 493.88 }, // B4
-  { name: "SA'", targetFreq: 523.25 }  // High C (C5)
+  { name: "SA'", targetFreq: 523.25 }, // High C (C5)
 ];
 
 let activeSwarasSequence = [];
@@ -71,10 +72,38 @@ let matchStartTime = null;
 ===================================== */
 
 const operators = [
-  { symbol: "+", theme: "plus", panelColor: "#D8E6F3", buttonColor: "#5B8DBE", textColor: "#1F3B57", subColor: "#3D5568" },
-  { symbol: "\u2212", theme: "minus", panelColor: "#E4E4E4", buttonColor: "#3A3A3A", textColor: "#2E2E2E", subColor: "#5A5A5A" },
-  { symbol: "\u00D7", theme: "times", panelColor: "#F8DCE7", buttonColor: "#D46A93", textColor: "#7A2E48", subColor: "#8A4D63" },
-  { symbol: "\u00F7", theme: "divide", panelColor: "#E8E8E2", buttonColor: "#888884", textColor: "#4A4A46", subColor: "#6B6B66" }
+  {
+    symbol: "+",
+    theme: "plus",
+    panelColor: "#D8E6F3",
+    buttonColor: "#5B8DBE",
+    textColor: "#1F3B57",
+    subColor: "#3D5568",
+  },
+  {
+    symbol: "\u2212",
+    theme: "minus",
+    panelColor: "#E4E4E4",
+    buttonColor: "#3A3A3A",
+    textColor: "#2E2E2E",
+    subColor: "#5A5A5A",
+  },
+  {
+    symbol: "\u00D7",
+    theme: "times",
+    panelColor: "#F8DCE7",
+    buttonColor: "#D46A93",
+    textColor: "#7A2E48",
+    subColor: "#8A4D63",
+  },
+  {
+    symbol: "\u00F7",
+    theme: "divide",
+    panelColor: "#E8E8E2",
+    buttonColor: "#888884",
+    textColor: "#4A4A46",
+    subColor: "#6B6B66",
+  },
 ];
 
 let operatorIndex = 0;
@@ -110,7 +139,13 @@ async function startMicrophone() {
   if (audioContext) return true;
 
   try {
-    microphoneStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    microphoneStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: false,
+      },
+    });
 
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     audioContext = new AudioCtx();
@@ -133,12 +168,15 @@ async function startMicrophone() {
 }
 
 /* =====================================
-   PITCH DETECTION (AUTOCORRELATION)
+   STRICT PITCH DETECTION (YIN Algorithm)
+   Rejects ambient noise, talking, and invalid pitches
 ===================================== */
 
-function detectPitch(buffer, sampleRate) {
+function detectPitchYin(buffer, sampleRate) {
   const SIZE = buffer.length;
+  const HALF_SIZE = Math.floor(SIZE / 2);
 
+  // 1. RMS Loudness Check
   let sumOfSquares = 0;
   for (let i = 0; i < SIZE; i++) {
     sumOfSquares += buffer[i] * buffer[i];
@@ -146,73 +184,81 @@ function detectPitch(buffer, sampleRate) {
   const rms = Math.sqrt(sumOfSquares / SIZE);
 
   if (rms < MIN_RMS) {
-    return { freq: -1, rms: rms };
+    return { freq: -1, probability: 0 };
   }
 
-  let r1 = 0;
-  let r2 = SIZE - 1;
-  const trimThreshold = 0.2;
+  // 2. Difference Function
+  const yinBuffer = new Float32Array(HALF_SIZE);
+  for (let t = 0; t < HALF_SIZE; t++) {
+    for (let i = 0; i < HALF_SIZE; i++) {
+      const delta = buffer[i] - buffer[i + t];
+      yinBuffer[t] += delta * delta;
+    }
+  }
 
-  for (let i = 0; i < SIZE / 2; i++) {
-    if (Math.abs(buffer[i]) > trimThreshold) {
-      r1 = i;
+  // 3. Cumulative Mean Normalized Difference
+  yinBuffer[0] = 1;
+  let runningSum = 0;
+  for (let t = 1; t < HALF_SIZE; t++) {
+    runningSum += yinBuffer[t];
+    yinBuffer[t] *= t / runningSum;
+  }
+
+  // 4. Absolute Threshold Check (Rejects noisy & unpitched signals)
+  let tau = -1;
+  for (let t = 2; t < HALF_SIZE; t++) {
+    if (yinBuffer[t] < YIN_THRESHOLD) {
+      while (t + 1 < HALF_SIZE && yinBuffer[t + 1] < yinBuffer[t]) {
+        t++;
+      }
+      tau = t;
       break;
     }
   }
-  for (let i = SIZE - 1; i > SIZE / 2; i--) {
-    if (Math.abs(buffer[i]) > trimThreshold) {
-      r2 = i;
-      break;
-    }
+
+  if (tau === -1 || yinBuffer[tau] >= YIN_THRESHOLD) {
+    return { freq: -1, probability: 0 };
   }
 
-  const trimmed = buffer.slice(r1, r2);
-  const trimmedSize = trimmed.length;
-  if (trimmedSize < 2) {
-    return { freq: -1, rms: rms };
+  // 5. Parabolic Interpolation for Precise Frequency Estimation
+  let betterTau;
+  const x0 = tau < 1 ? tau : tau - 1;
+  const x2 = tau + 1 < HALF_SIZE ? tau + 1 : tau;
+
+  if (x0 === tau) {
+    betterTau = yinBuffer[tau] <= yinBuffer[x2] ? tau : x2;
+  } else if (x2 === tau) {
+    betterTau = yinBuffer[tau] <= yinBuffer[x0] ? tau : x0;
+  } else {
+    const s0 = yinBuffer[x0];
+    const s1 = yinBuffer[tau];
+    const s2 = yinBuffer[x2];
+    betterTau = tau + (s2 - s0) / (2 * (2 * s1 - s2 - s0));
   }
 
-  const c = new Array(trimmedSize).fill(0);
-  for (let lag = 0; lag < trimmedSize; lag++) {
-    for (let j = 0; j < trimmedSize - lag; j++) {
-      c[lag] += trimmed[j] * trimmed[j + lag];
-    }
-  }
+  const pitchHz = sampleRate / betterTau;
+  const probability = 1 - yinBuffer[tau];
 
-  let d = 0;
-  while (d < c.length - 1 && c[d] > c[d + 1]) d++;
-
-  let maxVal = -1;
-  let maxPos = -1;
-  for (let i = d; i < c.length; i++) {
-    if (c[i] > maxVal) {
-      maxVal = c[i];
-      maxPos = i;
-    }
-  }
-
-  if (maxPos <= 0) {
-    return { freq: -1, rms: rms };
-  }
-
-  let t0 = maxPos;
-  const x1 = c[t0 - 1] || 0;
-  const x2 = c[t0] || 0;
-  const x3 = c[t0 + 1] || 0;
-  const a = (x1 + x3 - 2 * x2) / 2;
-  const b = (x3 - x1) / 2;
-  if (a !== 0) t0 = t0 - b / (2 * a);
-
-  const freq = sampleRate / t0;
-  return { freq: freq, rms: rms };
-}
-
-function centsBetween(freqA, freqB) {
-  return 1200 * Math.log2(freqA / freqB);
+  return { freq: pitchHz, probability: probability };
 }
 
 /* =====================================
-   LISTEN LOOP & PITCH MATCHING
+   OCTAVE-NEUTRAL PITCH DISTANCE (Cents)
+===================================== */
+
+function centsBetween(freqA, freqB) {
+  let cents = 1200 * Math.log2(freqA / freqB);
+  
+  // Normalizes across octaves so male (low) and female (high) voices match correctly
+  cents = cents % 1200;
+  if (cents > 600) cents -= 1200;
+  if (cents < -600) cents += 1200;
+  
+  return cents;
+}
+
+/* =====================================
+   LISTEN LOOP & STRICT SWARA MATCHING
 ===================================== */
 
 function startListening(targetFreq, onSolved) {
@@ -220,32 +266,46 @@ function startListening(targetFreq, onSolved) {
 
   function frame() {
     analyser.getFloatTimeDomainData(audioData);
-    const result = detectPitch(audioData, audioContext.sampleRate);
+    const result = detectPitchYin(audioData, audioContext.sampleRate);
 
     updateSideMeter(result.freq, targetFreq);
 
     if (result.freq > 0) {
       const cents = centsBetween(result.freq, targetFreq);
-      const closeness = Math.max(0, 1 - Math.abs(cents) / (MATCH_TOLERANCE_CENTS * 3));
+      const absCents = Math.abs(cents);
+      const isCorrectSwara = absCents <= MATCH_TOLERANCE_CENTS;
+
+      // Update Closeness Progress Meter
+      const closeness = Math.max(0, 1 - absCents / (MATCH_TOLERANCE_CENTS * 2.5));
       if (meterFill) meterFill.style.width = Math.round(closeness * 100) + "%";
 
-      if (Math.abs(cents) <= MATCH_TOLERANCE_CENTS) {
+      // Progression strictly occurs ONLY on the correct pitch target
+      if (isCorrectSwara) {
         if (matchStartTime === null) matchStartTime = performance.now();
         const held = performance.now() - matchStartTime;
+
         if (holdReadout) {
-          holdReadout.textContent = "holding " + Math.min(HOLD_TIME_MS, Math.round(held)) + " / " + HOLD_TIME_MS + " ms";
+          holdReadout.textContent =
+            "holding " +
+            Math.min(HOLD_TIME_MS, Math.round(held)) +
+            " / " +
+            HOLD_TIME_MS +
+            " ms";
         }
 
+        // Must sustain the targeted pitch steadily for the required duration
         if (held >= HOLD_TIME_MS) {
           stopListening();
           onSolved();
           return;
         }
       } else {
+        // Reset timer immediately if pitch strays to another note or swara
         matchStartTime = null;
-        if (holdReadout) holdReadout.textContent = "";
+        if (holdReadout) holdReadout.textContent = "Wrong pitch!";
       }
     } else {
+      // Noise / Silence handling
       matchStartTime = null;
       if (meterFill) meterFill.style.width = "0%";
       if (holdReadout) holdReadout.textContent = "";
@@ -271,7 +331,8 @@ function updateSideMeter(freq, targetFreq) {
   const targetPct = clampPct(((targetFreq - lo) / (hi - lo)) * 100);
 
   sideMeterTarget.style.left = targetPct + "%";
-  if (targetReadout) targetReadout.textContent = "target ~" + Math.round(targetFreq) + " Hz";
+  if (targetReadout)
+    targetReadout.textContent = "target ~" + Math.round(targetFreq) + " Hz";
 
   if (freq > 0) {
     const pct = clampPct(((freq - lo) / (hi - lo)) * 100);
@@ -279,7 +340,10 @@ function updateSideMeter(freq, targetFreq) {
     if (pitchReadout) pitchReadout.textContent = Math.round(freq) + " Hz";
 
     const cents = centsBetween(freq, targetFreq);
-    sideMeterFill.style.background = Math.abs(cents) <= MATCH_TOLERANCE_CENTS ? "#97C459" : "var(--button-color)";
+    sideMeterFill.style.background =
+      Math.abs(cents) <= MATCH_TOLERANCE_CENTS
+        ? "#97C459"
+        : "var(--button-color)";
   } else {
     sideMeterFill.style.width = "0%";
     sideMeterFill.style.background = "var(--button-color)";
@@ -303,12 +367,12 @@ function generateRandomSequence() {
     let randomIndex;
     do {
       randomIndex = Math.floor(Math.random() * SWARA_POOL.length);
-    } while (i > 0 && SWARA_POOL[randomIndex].name === sequence[i - 1].name); // Avoid exact consecutive swara repeats
+    } while (i > 0 && SWARA_POOL[randomIndex].name === sequence[i - 1].name);
 
     sequence.push({
       stage: stages[i],
       name: SWARA_POOL[randomIndex].name,
-      targetFreq: SWARA_POOL[randomIndex].targetFreq
+      targetFreq: SWARA_POOL[randomIndex].targetFreq,
     });
   }
 
@@ -345,7 +409,6 @@ async function startGame() {
   const micReady = await startMicrophone();
   if (!micReady) return;
 
-  // Generate unique random target swaras for this round
   activeSwarasSequence = generateRandomSequence();
 
   if (game) game.hidden = false;
@@ -361,7 +424,11 @@ function prepareLevel() {
   const currentSwara = activeSwarasSequence[currentLevel];
 
   if (level) {
-    level.textContent = "STEP " + (currentLevel + 1) + " / 3: " + currentSwara.stage.toUpperCase();
+    level.textContent =
+      "STEP " +
+      (currentLevel + 1) +
+      " / 3: " +
+      currentSwara.stage.toUpperCase();
   }
   if (swaraButton) {
     swaraButton.textContent = currentSwara.name;
@@ -370,7 +437,12 @@ function prepareLevel() {
   }
 
   if (stepLabel) {
-    stepLabel.textContent = "Sing " + currentSwara.name + " (~" + Math.round(currentSwara.targetFreq) + " Hz)";
+    stepLabel.textContent =
+      "Sing " +
+      currentSwara.name +
+      " (~" +
+      Math.round(currentSwara.targetFreq) +
+      " Hz)";
     stepLabel.classList.remove("solved");
   }
 
@@ -406,7 +478,8 @@ function solveSwara() {
 
   if (stepLabel) {
     stepLabel.classList.add("solved");
-    stepLabel.textContent = activeSwarasSequence[currentLevel].name + " HARMONIZED!";
+    stepLabel.textContent =
+      activeSwarasSequence[currentLevel].name + " HARMONIZED!";
   }
   if (meterFill) meterFill.style.width = "100%";
 
@@ -427,10 +500,18 @@ function showResult() {
 
   let result;
   switch (operatorIndex) {
-    case 0: result = a + b; break;
-    case 1: result = a - b; break;
-    case 2: result = a * b; break;
-    case 3: result = a / b; break;
+    case 0:
+      result = a + b;
+      break;
+    case 1:
+      result = a - b;
+      break;
+    case 2:
+      result = a * b;
+      break;
+    case 3:
+      result = a / b;
+      break;
   }
 
   if (equation) equation.textContent = a + " " + symbol + " " + b;
