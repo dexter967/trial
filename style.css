@@ -283,16 +283,22 @@ footer {
    page transition rather than something you scroll past.
 ══════════════════════════════ */
 
-.game-page {
+/* Hidden by default, unconditionally — this does NOT rely on the HTML
+   "hidden" attribute, so it can't be broken by a stale copy of this
+   file being paired with a different index.html. The calculator only
+   becomes visible when JS adds the "is-open" class. */
+#game-wrapper.game-page {
   position: fixed;
   inset: 0;
   z-index: 200;
   background: var(--white);
-  display: flex;
+  display: none;
   flex-direction: column;
   overflow-y: auto;
 }
-.game-page[hidden] { display: none !important; }
+#game-wrapper.game-page.is-open {
+  display: flex;
+}
 
 .back-link {
   align-self: flex-start;
